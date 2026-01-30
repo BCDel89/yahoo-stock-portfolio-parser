@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 async function parsePortfolioData() {
+	const datePrefix = new Date().toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/(\d+)\/(\d+)\/(\d+),\s(\d+):(\d+)/, '$1$2$3_$4$5');
   const browser = await puppeteer.launch({
     headless: process.env.PUPPETEER_HEADLESS === 'true',
     defaultViewport: null,
@@ -88,7 +89,7 @@ async function parsePortfolioData() {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Take a screenshot to see the current page
-    await page.screenshot({ path: path.join(__dirname, '..', 'portfolio_page.png'), fullPage: false });
+    await page.screenshot({ path: path.join(__dirname, '../data/output', datePrefix + '_print.png'), fullPage: false });
     console.log('Saved screenshot: portfolio_page.png');
 
     // Look for tab container and list all clickable elements near "Holdings Summary"
@@ -226,7 +227,7 @@ async function parsePortfolioData() {
     }
 
     // Save the parsed data
-    const outputPath = path.join(__dirname, '..', 'portfolio-data.json');
+    const outputPath = path.join(__dirname, '../data/output', datePrefix + '_data.json');
     fs.writeFileSync(outputPath, JSON.stringify(portfolioData, null, 2));
     console.log(`\nSaved portfolio data to: ${outputPath}`);
     console.log(`\nParsed ${Object.keys(portfolioData).length} symbols`);
