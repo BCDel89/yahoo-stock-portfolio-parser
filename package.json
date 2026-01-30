@@ -1,5 +1,5 @@
 {
-  "name": "stock-portfolio-parser",
+  "name": "yahoo-stock-portfolio-parser",
   "version": "1.0.1",
   "description": "Automated Yahoo Finance portfolio data extraction tool using Puppeteer",
   "main": "src/parse-portfolio-data.js",
