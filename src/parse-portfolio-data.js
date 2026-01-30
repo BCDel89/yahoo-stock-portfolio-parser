@@ -8,7 +8,7 @@ const yahooFinance = new YahooFinance();
 async function parsePortfolioData() {
 	const datePrefix = new Date().toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/(\d+)\/(\d+)\/(\d+),\s(\d+):(\d+)/, '$1$2$3_$4$5');
   const browser = await puppeteer.launch({
-    headless: process.env.PUPPETEER_HEADLESS === 'true',
+    headless: process.env.PUPPETEER_HEADLESS !== 'false',
     defaultViewport: null,
     args: [
       '--no-sandbox',
