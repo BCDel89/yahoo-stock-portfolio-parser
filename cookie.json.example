@@ -1,0 +1,15 @@
+[
+  {
+    "domain": ".yahoo.com",
+    "expirationDate": 1234567890,
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "cookie_name",
+    "path": "/",
+    "sameSite": "lax",
+    "secure": true,
+    "session": false,
+    "storeId": null,
+    "value": "cookie_value_here"
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "name": "stock-portfolio-parser",
+  "version": "1.0.0",
+  "description": "Automated Yahoo Finance portfolio data extraction tool using Puppeteer",
+  "main": "src/capture-portfolio.js",
+  "scripts": {
+    "capture": "node src/capture-portfolio.js",
+    "parse": "node src/parse-portfolio-data.js",
+    "print": "node src/print-portfolio.js"
+  },
+  "keywords": [
+    "puppeteer",
+    "automation",
+    "yahoo-finance",
+    "portfolio",
+    "web-scraping"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "puppeteer": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
