@@ -2,6 +2,8 @@ require('dotenv').config();
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const YahooFinance = require('yahoo-finance2').default;
+const yahooFinance = new YahooFinance();
 
 async function parsePortfolioData() {
 	const datePrefix = new Date().toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/(\d+)\/(\d+)\/(\d+),\s(\d+):(\d+)/, '$1$2$3_$4$5');
@@ -224,6 +226,196 @@ async function parsePortfolioData() {
           });
         }
       });
+    }
+
+    // Fetch Yahoo Finance data for each symbol
+    console.log('\n=== Fetching Yahoo Finance API data ===');
+    const symbols = Object.keys(portfolioData);
+
+    for (const symbol of symbols) {
+      try {
+        console.log(`Fetching data for ${symbol}...`);
+        const quote = await yahooFinance.quote(symbol);
+
+        // Add Yahoo Finance data to the symbol's data
+        portfolioData[symbol].yahooFinanceData = quote;
+        console.log(`  ✓ Successfully fetched data for ${symbol}`);
+      } catch (error) {
+        console.error(`  ✗ Error fetching data for ${symbol}:`, error.message);
+        portfolioData[symbol].yahooFinanceData = { error: error.message };
+      }
+
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Scrape news articles for each symbol
+    console.log('\n=== Scraping news articles ===');
+    for (const symbol of symbols) {
+      try {
+        console.log(`Scraping news for ${symbol}...`);
+        // Go directly to the news page for this stock
+        const newsUrl = `https://finance.yahoo.com/quote/${symbol}/news/`;
+
+        await page.goto(newsUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: parseInt(process.env.PUPPETEER_TIMEOUT || '60000')
+        });
+
+        // Wait for content to load
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Scroll down to ensure news section loads
+        await page.evaluate(() => {
+          window.scrollTo(0, document.body.scrollHeight / 3);
+        });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Get article links
+        const articleLinks = await page.evaluate(() => {
+          const articles = [];
+          const seen = new Set();
+
+          // Get ALL links with /news/ in href
+          const allNewsLinks = Array.from(document.querySelectorAll('a[href*="/news/"]'));
+
+          allNewsLinks.forEach(link => {
+            const href = link.href;
+
+            // Skip if we've seen this link, or if it's a navigation link
+            if (seen.has(href)) return;
+            if (!href.includes('finance.yahoo.com/news/')) return;
+            if (href.includes('/news/us/') || href.includes('/news/politics/')) return; // Skip category pages
+
+            // Try to find a title - check for h3 in or near the link
+            let title = '';
+
+            // Method 1: h3 inside the link
+            const h3Inside = link.querySelector('h3');
+            if (h3Inside) {
+              title = h3Inside.textContent.trim();
+            }
+
+            // Method 2: h3 in parent container
+            if (!title) {
+              const parent = link.closest('li, div, article');
+              if (parent) {
+                const h3Parent = parent.querySelector('h3');
+                if (h3Parent) {
+                  title = h3Parent.textContent.trim();
+                }
+              }
+            }
+
+            // Method 3: Use link text as fallback
+            if (!title) {
+              const linkText = link.textContent.trim();
+              if (linkText.length > 20 && linkText.length < 200) {
+                title = linkText;
+              }
+            }
+
+            // Only add if we have a reasonable title
+            if (title && title.length > 15 && title.length < 300) {
+              articles.push({
+                title: title,
+                link: href
+              });
+              seen.add(href);
+            }
+          });
+
+          return articles.slice(0, 5); // Limit to 5 articles
+        });
+
+        console.log(`  Found ${articleLinks.length} article links for ${symbol}`);
+
+        // Now fetch full content for each article
+        const newsArticles = [];
+        for (let i = 0; i < articleLinks.length; i++) {
+          const article = articleLinks[i];
+          try {
+            console.log(`    Fetching article ${i + 1}/${articleLinks.length}...`);
+
+            await page.goto(article.link, {
+              waitUntil: 'domcontentloaded',
+              timeout: parseInt(process.env.PUPPETEER_TIMEOUT || '60000')
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Extract full article content
+            const fullArticle = await page.evaluate(() => {
+              // Try different selectors for article content
+              const contentSelectors = [
+                '.body .caas-body',
+                'article .caas-body',
+                '.article-body',
+                '[data-test-locator="article-canvas"]',
+                '.canvas-body',
+                'article'
+              ];
+
+              let content = '';
+              for (const selector of contentSelectors) {
+                const contentEl = document.querySelector(selector);
+                if (contentEl) {
+                  // Get all paragraph text
+                  const paragraphs = contentEl.querySelectorAll('p');
+                  content = Array.from(paragraphs)
+                    .map(p => p.textContent.trim())
+                    .filter(text => text.length > 0)
+                    .join('\n\n');
+
+                  if (content) break;
+                }
+              }
+
+              // Fallback: get all paragraphs if no content found
+              if (!content) {
+                const allParagraphs = document.querySelectorAll('article p, .article p, main p');
+                content = Array.from(allParagraphs)
+                  .map(p => p.textContent.trim())
+                  .filter(text => text.length > 50) // Filter out short/navigation text
+                  .slice(0, 20) // Limit paragraphs
+                  .join('\n\n');
+              }
+
+              return content;
+            });
+
+            newsArticles.push({
+              title: article.title,
+              link: article.link,
+              content: fullArticle
+            });
+
+            console.log(`    ✓ Article ${i + 1} content extracted (${fullArticle.length} chars)`);
+
+          } catch (articleError) {
+            console.error(`    ✗ Error fetching article: ${articleError.message}`);
+            newsArticles.push({
+              title: article.title,
+              link: article.link,
+              content: '',
+              error: articleError.message
+            });
+          }
+
+          // Delay between articles
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        portfolioData[symbol].news = newsArticles;
+        console.log(`  ✓ Scraped ${newsArticles.length} full articles for ${symbol}`);
+
+      } catch (error) {
+        console.error(`  ✗ Error scraping news for ${symbol}:`, error.message);
+        portfolioData[symbol].news = { error: error.message };
+      }
+
+      // Delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     // Save the parsed data

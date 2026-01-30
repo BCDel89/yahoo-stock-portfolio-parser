@@ -17,7 +17,8 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^17.2.3",
-    "puppeteer": "^22.0.0"
+    "puppeteer": "^22.0.0",
+    "yahoo-finance2": "^3.13.0"
   },
   "engines": {
     "node": ">=18.0.0"
